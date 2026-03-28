@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-primary: #adc7ff;
+  --color-secondary: #c5c7c8;
+  --color-tertiary: #ffb691;
+  --color-background: #10131a;
+  --color-surface: #191c23;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-[#e0e2ec] antialiased;
+  }
+}
+
+@layer utilities {
+  .text-display-sm {
+    @apply text-2xl font-bold tracking-tight;
+  }
+}
