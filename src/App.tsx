@@ -385,7 +385,7 @@ export default function App() {
 
                   {/* Tertiary Value Input */}
                   <div className="space-y-3 pt-2">
-                    <div className="bg-[#191c23] rounded-xl p-4 flex items-center gap-2 focus-within:ring-2 focus-within:ring-[#adc7ff] transition-all opacity-60">
+                    <div className="bg-[#1e2533] rounded-xl p-4 flex items-center gap-2 focus-within:ring-2 focus-within:ring-[#adc7ff] transition-all opacity-90 border border-[#adc7ff]/10">
                       <span className="text-[#adc7ff] font-bold min-w-[24px]">{tertiaryCurrency}</span>
                       <input 
                         type="text"
