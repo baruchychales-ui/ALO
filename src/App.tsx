@@ -31,9 +31,18 @@ export default function App() {
   const [currency, setCurrency] = useState('R$');
   const [secondaryCurrency, setSecondaryCurrency] = useState('$');
   const [tertiaryCurrency, setTertiaryCurrency] = useState('€');
-  const [rates, setRates] = useState<{ [key: string]: string }>(() => {
-    const savedRates = localStorage.getItem('financial_rates');
-    return savedRates ? JSON.parse(savedRates) : {
+  const [vendaRates, setVendaRates] = useState<{ [key: string]: string }>(() => {
+    const saved = localStorage.getItem('financial_venda_rates');
+    return saved ? JSON.parse(saved) : {
+      '$': '5,00',
+      '€': '5,40',
+      '£': '6,30',
+      'د.إ': '1,36',
+    };
+  });
+  const [compraRates, setCompraRates] = useState<{ [key: string]: string }>(() => {
+    const saved = localStorage.getItem('financial_compra_rates');
+    return saved ? JSON.parse(saved) : {
       '$': '5,00',
       '€': '5,40',
       '£': '6,30',
@@ -42,30 +51,33 @@ export default function App() {
   });
 
   useEffect(() => {
-    localStorage.setItem('financial_rates', JSON.stringify(rates));
-  }, [rates]);
+    localStorage.setItem('financial_venda_rates', JSON.stringify(vendaRates));
+  }, [vendaRates]);
 
-  const getRateValue = (symbol: string) => {
+  useEffect(() => {
+    localStorage.setItem('financial_compra_rates', JSON.stringify(compraRates));
+  }, [compraRates]);
+
+  const getRateValue = (symbol: string, opType?: string) => {
     if (symbol === 'R$') return 1;
-    const rateStr = rates[symbol];
+    const currentType = opType || type;
+    const currentRates = currentType === 'venda' ? vendaRates : compraRates;
+    const rateStr = currentRates[symbol];
     if (!rateStr) return 0;
     const num = parseFloat(rateStr.replace(',', '.'));
     return isNaN(num) ? 0 : num;
   };
 
-  const calculateConversion = (value: string, fromSymbol: string, toSymbol: string) => {
+  const calculateConversion = (value: string, fromSymbol: string, toSymbol: string, opType?: string) => {
     if (!value) return '';
     const num = parseFloat(value.replace(',', '.'));
     if (isNaN(num)) return '';
     
-    const fromRate = getRateValue(fromSymbol);
-    const toRate = getRateValue(toSymbol);
+    const fromRate = getRateValue(fromSymbol, opType);
+    const toRate = getRateValue(toSymbol, opType);
     
     if (fromRate === 0 || toRate === 0) return '';
     
-    // Logic: Convert to R$ then to target currency
-    // ValueInR$ = num * fromRate
-    // Result = ValueInR$ / toRate
     const result = (num * fromRate) / toRate;
     return result.toFixed(2).replace('.', ',');
   };
@@ -73,18 +85,18 @@ export default function App() {
   // Calculation: Primary -> Secondary
   useEffect(() => {
     const sourceValue = type === 'venda' ? income : expense;
-    const result = calculateConversion(sourceValue, currency, secondaryCurrency);
+    const result = calculateConversion(sourceValue, currency, secondaryCurrency, type);
     if (type === 'venda') setSecondaryIncome(result);
     else setSecondaryExpense(result);
-  }, [income, expense, rates, currency, secondaryCurrency, type]);
+  }, [income, expense, vendaRates, compraRates, currency, secondaryCurrency, type]);
 
   // Calculation: Secondary -> Tertiary
   useEffect(() => {
     const sourceValue = type === 'venda' ? secondaryIncome : secondaryExpense;
-    const result = calculateConversion(sourceValue, secondaryCurrency, tertiaryCurrency);
+    const result = calculateConversion(sourceValue, secondaryCurrency, tertiaryCurrency, type);
     if (type === 'venda') setTertiaryIncome(result);
     else setTertiaryExpense(result);
-  }, [secondaryIncome, secondaryExpense, rates, secondaryCurrency, tertiaryCurrency, type]);
+  }, [secondaryIncome, secondaryExpense, vendaRates, compraRates, secondaryCurrency, tertiaryCurrency, type]);
 
   const [entries, setEntries] = useState<FinancialEntry[]>(() => {
     const saved = localStorage.getItem('financial_entries');
@@ -100,6 +112,21 @@ export default function App() {
     localStorage.setItem('financial_entries', JSON.stringify(entries));
     localStorage.setItem('financial_next_sequence', nextSequence.toString());
   }, [entries, nextSequence]);
+
+  // Migration: Ensure all entries have amountInBRL
+  useEffect(() => {
+    const needsMigration = entries.some(e => e.amountInBRL === undefined);
+    if (needsMigration) {
+      const migrated = entries.map(e => {
+        if (e.amountInBRL === undefined) {
+          const rate = getRateValue(e.currency || 'R$', e.type);
+          return { ...e, amountInBRL: e.amount * rate };
+        }
+        return e;
+      });
+      setEntries(migrated);
+    }
+  }, []); // Only run once on mount
 
   const handleSave = () => {
     const amountStr = type === 'venda' ? income : expense;
@@ -124,6 +151,8 @@ export default function App() {
       description: `${type === 'venda' ? 'Venda' : 'Compra'} - ${customerName}`,
       date: `${formattedDate}, ${currentTime}`,
       amount: amount,
+      amountInBRL: amount * getRateValue(currency, type),
+      currency: currency,
       isIncome: type === 'venda',
     };
 
@@ -454,10 +483,14 @@ export default function App() {
                     type="text"
                     inputMode="decimal"
                     placeholder="0,00"
-                    value={rates[curr.symbol]}
+                    value={type === 'venda' ? vendaRates[curr.symbol] : compraRates[curr.symbol]}
                     onChange={(e) => {
                       const val = e.target.value.replace(/[^0-9,.]/g, '');
-                      setRates(prev => ({ ...prev, [curr.symbol]: val }));
+                      if (type === 'venda') {
+                        setVendaRates(prev => ({ ...prev, [curr.symbol]: val }));
+                      } else {
+                        setCompraRates(prev => ({ ...prev, [curr.symbol]: val }));
+                      }
                     }}
                     className="w-full bg-transparent border-none p-0 focus:ring-0 text-white text-center text-xs font-semibold placeholder:text-[#414754]"
                   />
@@ -517,9 +550,14 @@ export default function App() {
                     <p className="text-xs text-[#8b909f]">{entry.date}</p>
                   </div>
                 </div>
-                <span className={`font-bold ${entry.isIncome ? 'text-[#adc7ff]' : 'text-[#ffb691]'}`}>
-                  {entry.isIncome ? '+' : '-'} R$ {entry.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </span>
+                <div className="text-right">
+                  <span className={`font-bold ${entry.isIncome ? 'text-[#adc7ff]' : 'text-[#ffb691]'}`}>
+                    {entry.isIncome ? '+' : '-'} {entry.currency || 'R$'} {entry.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
+                  <p className="text-[10px] text-[#8b909f] font-medium">
+                    R$ {(entry.amountInBRL || (entry.amount * getRateValue(entry.currency || 'R$', entry.type))).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
               </motion.div>
             ))}
           </div>

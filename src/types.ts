@@ -5,6 +5,8 @@ export interface FinancialEntry {
   description: string;
   date: string;
   amount: number;
+  amountInBRL?: number;
+  currency: string;
   isIncome: boolean;
 }
 
