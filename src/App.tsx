@@ -68,35 +68,48 @@ export default function App() {
     return isNaN(num) ? 0 : num;
   };
 
-  const calculateConversion = (value: string, fromSymbol: string, toSymbol: string, opType?: string) => {
-    if (!value) return '';
-    const num = parseFloat(value.replace(',', '.'));
-    if (isNaN(num)) return '';
-    
-    const fromRate = getRateValue(fromSymbol, opType);
-    const toRate = getRateValue(toSymbol, opType);
-    
-    if (fromRate === 0 || toRate === 0) return '';
-    
-    const result = (num * fromRate) / toRate;
-    return result.toFixed(2).replace('.', ',');
-  };
-
   // Calculation: Primary -> Secondary
   useEffect(() => {
     const sourceValue = type === 'venda' ? income : expense;
-    const result = calculateConversion(sourceValue, currency, secondaryCurrency, type);
-    if (type === 'venda') setSecondaryIncome(result);
-    else setSecondaryExpense(result);
-  }, [income, expense, vendaRates, compraRates, currency, secondaryCurrency, type]);
+    if (!sourceValue) {
+      if (type === 'venda') setSecondaryIncome('');
+      else setSecondaryExpense('');
+      return;
+    }
+    const num = parseFloat(sourceValue.replace(',', '.'));
+    if (isNaN(num)) return;
+    
+    const toRate = getRateValue(secondaryCurrency, type);
+    if (toRate === 0) return;
+    
+    const result = type === 'venda' ? num * toRate : num / toRate;
+    const formatted = result.toFixed(2).replace('.', ',');
+    
+    if (type === 'venda') setSecondaryIncome(formatted);
+    else setSecondaryExpense(formatted);
+  }, [income, expense, vendaRates, compraRates, secondaryCurrency, type]);
 
   // Calculation: Secondary -> Tertiary
   useEffect(() => {
     const sourceValue = type === 'venda' ? secondaryIncome : secondaryExpense;
-    const result = calculateConversion(sourceValue, secondaryCurrency, tertiaryCurrency, type);
-    if (type === 'venda') setTertiaryIncome(result);
-    else setTertiaryExpense(result);
-  }, [secondaryIncome, secondaryExpense, vendaRates, compraRates, secondaryCurrency, tertiaryCurrency, type]);
+    if (!sourceValue) {
+      if (type === 'venda') setTertiaryIncome('');
+      else setTertiaryExpense('');
+      return;
+    }
+    const num = parseFloat(sourceValue.replace(',', '.'));
+    if (isNaN(num)) return;
+    
+    // Use the secondaryCurrency rate for the second division as well
+    const toRate = getRateValue(secondaryCurrency, type);
+    if (toRate === 0) return;
+    
+    const result = type === 'venda' ? num * toRate : num / toRate;
+    const formatted = result.toFixed(2).replace('.', ',');
+    
+    if (type === 'venda') setTertiaryIncome(formatted);
+    else setTertiaryExpense(formatted);
+  }, [secondaryIncome, secondaryExpense, vendaRates, compraRates, secondaryCurrency, type]);
 
   const [entries, setEntries] = useState<FinancialEntry[]>(() => {
     const saved = localStorage.getItem('financial_entries');
