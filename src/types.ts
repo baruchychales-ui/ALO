@@ -5,8 +5,9 @@ export interface FinancialEntry {
   description: string;
   date: string;
   amount: number;
-  amountInBRL?: number;
+  amountInBase?: number;
   currency: string;
+  secondaryCurrency?: string;
   isIncome: boolean;
 }
 
