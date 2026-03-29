@@ -106,7 +106,10 @@ export default function App() {
     const saved = localStorage.getItem('financial_next_sequence');
     return saved ? parseInt(saved, 10) : 1;
   });
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [historyTypeFilter, setHistoryTypeFilter] = useState<'all' | 'venda' | 'compra'>('all');
+  const [showAllHistory, setShowAllHistory] = useState(false);
+
+  const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '');
 
   useEffect(() => {
     localStorage.setItem('financial_entries', JSON.stringify(entries));
@@ -516,21 +519,43 @@ export default function App() {
           <div className="flex justify-between items-center px-1">
             <h3 className="text-lg font-bold text-white">Histórico</h3>
             <div className="flex items-center gap-2">
+              <div className="flex bg-[#191c23] p-1 rounded-full border border-[#1d2027]">
+                <button 
+                  onClick={() => setHistoryTypeFilter('all')}
+                  className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all ${historyTypeFilter === 'all' ? 'bg-white text-[#10131a]' : 'text-[#8b909f] hover:text-white'}`}
+                >
+                  Todos
+                </button>
+                <button 
+                  onClick={() => setHistoryTypeFilter('venda')}
+                  className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all ${historyTypeFilter === 'venda' ? 'bg-[#adc7ff] text-[#10131a]' : 'text-[#8b909f] hover:text-white'}`}
+                >
+                  Vendas
+                </button>
+                <button 
+                  onClick={() => setHistoryTypeFilter('compra')}
+                  className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all ${historyTypeFilter === 'compra' ? 'bg-[#ffb691] text-[#10131a]' : 'text-[#8b909f] hover:text-white'}`}
+                >
+                  Compras
+                </button>
+              </div>
               <button 
-                onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
-                className="text-[#adc7ff] text-xs font-bold bg-[#191c23] px-3 py-1.5 rounded-full border border-[#1d2027] hover:bg-[#1d2027] transition-all flex items-center gap-1.5"
+                onClick={() => setShowAllHistory(!showAllHistory)}
+                className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all ${showAllHistory ? 'bg-white text-[#10131a]' : 'text-[#8b909f] hover:text-white bg-[#191c23] border border-[#1d2027]'}`}
               >
-                {sortOrder === 'desc' ? 'Mais recentes' : 'Mais antigos'}
-                <ChevronDown size={14} className={`transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} />
+                Ver tudo
               </button>
-              <button className="text-[#adc7ff] text-sm font-medium hover:underline underline-offset-4">Ver tudo</button>
             </div>
           </div>
           
           <div className="space-y-3">
             {[...entries]
-              .sort((a, b) => sortOrder === 'desc' ? b.sequenceNumber - a.sequenceNumber : a.sequenceNumber - b.sequenceNumber)
-              .filter(entry => ['venda', 'compra'].includes(entry.type)).map((entry, index) => (
+              .sort((a, b) => b.sequenceNumber - a.sequenceNumber)
+              .filter(entry => {
+                const isTypeMatch = historyTypeFilter === 'all' || entry.type === historyTypeFilter;
+                const isDateMatch = showAllHistory || entry.date.startsWith(todayFormatted);
+                return isTypeMatch && isDateMatch && ['venda', 'compra'].includes(entry.type);
+              }).map((entry, index) => (
               <motion.div 
                 key={entry.id}
                 initial={{ opacity: 0, x: -10 }}
