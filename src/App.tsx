@@ -46,7 +46,7 @@ export default function App() {
       '$': '5,00',
       '€': '5,40',
       '£': '6,30',
-      'د.إ': '1,36',
+      'R$': '0,73',
     };
   });
 
@@ -59,8 +59,9 @@ export default function App() {
   }, [compraRates]);
 
   const getRateValue = (symbol: string, opType?: string) => {
-    if (symbol === 'R$') return 1;
     const currentType = opType || type;
+    const baseSymbol = currentType === 'venda' ? 'R$' : 'د.إ';
+    if (symbol === baseSymbol) return 1;
     const currentRates = currentType === 'venda' ? vendaRates : compraRates;
     const rateStr = currentRates[symbol];
     if (!rateStr) return 0;
@@ -92,7 +93,7 @@ export default function App() {
     const toRate = getRateValue(secondaryCurrency, type);
     if (fromRate === 0 || toRate === 0) return;
     
-    const result = (num * fromRate) / toRate;
+    const result = type === 'venda' ? (num * fromRate) / toRate : (num / fromRate) * toRate;
     const formatted = result.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     
     if (type === 'venda') setSecondaryIncome(formatted);
@@ -125,9 +126,10 @@ export default function App() {
     
     if (fromRate === 0 || toRate === 0 || realRate === 0 || secondaryRate === 0) return;
     
-    // Special calculation for tertiary balloon: (Value in Original Currency) * RateFrom
-    // This ensures that if the second balloon is already in Real, the third balloon is equal.
-    const result = (num * fromRate) / realRate;
+    // Special calculation for tertiary balloon:
+    // Venda: (Value * RateFrom) / RateReal (RateReal is 1)
+    // Compra: (Value / RateFrom) * RateReal
+    const result = type === 'venda' ? (num * fromRate) / realRate : (num / fromRate) * realRate;
     const formatted = result.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     
     if (type === 'venda') setTertiaryIncome(formatted);
@@ -157,24 +159,26 @@ export default function App() {
   }, [entries, nextSequence]);
 
   const getAmountInBase = (amount: number, currencySymbol: string, opType: string, secCurrency: string) => {
-    if (currencySymbol === 'R$') return amount;
     const rate = getRateValue(currencySymbol, opType);
-    if (rate === 0) return 0;
+    const realRate = getRateValue('R$', opType);
+    if (rate === 0 || realRate === 0) return 0;
     
-    // The base value is always the amount converted to Real (multiplied by rate)
-    return amount * rate;
+    // The base value is always the amount converted to Real
+    // Venda: amount * rate
+    // Compra: (amount / rate) * realRate
+    return opType === 'venda' ? (amount * rate) : (amount / rate) * realRate;
   };
 
   // Migration: Ensure all entries have amountInBase in Real (R$)
   useEffect(() => {
-    const isMigrated = localStorage.getItem('financial_migrated_to_real_v6') === 'true';
+    const isMigrated = localStorage.getItem('financial_migrated_to_real_v7') === 'true';
     if (!isMigrated && entries.length > 0) {
       const migrated = entries.map(e => ({
         ...e,
         amountInBase: getAmountInBase(e.amount, e.currency || 'د.إ', e.type, e.secondaryCurrency || 'د.إ')
       }));
       setEntries(migrated);
-      localStorage.setItem('financial_migrated_to_real_v6', 'true');
+      localStorage.setItem('financial_migrated_to_real_v7', 'true');
     }
   }, [entries]);
 
@@ -499,12 +503,12 @@ export default function App() {
           <div className="space-y-3 pt-4">
             <label className="block text-[10px] uppercase tracking-[0.2em] text-[#8b909f] font-bold px-1">Cotação do Dia</label>
             <div className="grid grid-cols-5 gap-2">
-              {/* Real Base Balloon (White) */}
+              {/* Base Balloon (White) */}
               <div className="bg-white rounded-xl p-2 flex flex-col items-center gap-1 border border-white shadow-lg">
-                <span className="text-[10px] font-bold text-[#10131a]">R$</span>
+                <span className="text-[10px] font-bold text-[#10131a]">{type === 'venda' ? 'R$' : 'د.إ'}</span>
                 <span className="text-xs font-bold text-[#10131a]">1,00</span>
               </div>
-              {currencies.filter(c => c.symbol !== 'R$').map((curr) => (
+              {currencies.filter(c => c.symbol !== (type === 'venda' ? 'R$' : 'د.إ')).map((curr) => (
                 <div key={`rate-${curr.symbol}`} className={`bg-[#191c23] rounded-xl p-2 flex flex-col items-center gap-1 border border-[#1d2027] transition-all ${type === 'venda' ? 'focus-within:border-[#adc7ff]/30' : 'focus-within:border-[#ffb691]/30'}`}>
                   <span className={`text-[10px] font-bold ${type === 'venda' ? 'text-[#adc7ff]' : 'text-[#ffb691]'}`}>{curr.symbol}</span>
                   <input 
