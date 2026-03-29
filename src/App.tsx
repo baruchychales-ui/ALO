@@ -30,23 +30,23 @@ export default function App() {
   const [tertiaryExpense, setTertiaryExpense] = useState('');
   const [currency, setCurrency] = useState('R$');
   const [secondaryCurrency, setSecondaryCurrency] = useState('د.إ');
-  const [tertiaryCurrency, setTertiaryCurrency] = useState('د.إ');
+  const [tertiaryCurrency, setTertiaryCurrency] = useState('R$');
   const [vendaRates, setVendaRates] = useState<{ [key: string]: string }>(() => {
     const saved = localStorage.getItem('financial_venda_rates');
     return saved ? JSON.parse(saved) : {
-      '$': '0,27',
-      '€': '0,25',
-      '£': '0,21',
-      'R$': '1,36',
+      '$': '5,00',
+      '€': '5,40',
+      '£': '6,30',
+      'د.إ': '1,36',
     };
   });
   const [compraRates, setCompraRates] = useState<{ [key: string]: string }>(() => {
     const saved = localStorage.getItem('financial_compra_rates');
     return saved ? JSON.parse(saved) : {
-      '$': '0,27',
-      '€': '0,25',
-      '£': '0,21',
-      'R$': '1,36',
+      '$': '5,00',
+      '€': '5,40',
+      '£': '6,30',
+      'د.إ': '1,36',
     };
   });
 
@@ -59,7 +59,7 @@ export default function App() {
   }, [compraRates]);
 
   const getRateValue = (symbol: string, opType?: string) => {
-    if (symbol === 'د.إ') return 1;
+    if (symbol === 'R$') return 1;
     const currentType = opType || type;
     const currentRates = currentType === 'venda' ? vendaRates : compraRates;
     const rateStr = currentRates[symbol];
@@ -92,7 +92,7 @@ export default function App() {
     const toRate = getRateValue(secondaryCurrency, type);
     if (fromRate === 0 || toRate === 0) return;
     
-    const result = type === 'compra' ? (num / fromRate) * toRate : num * toRate;
+    const result = (num * fromRate) / toRate;
     const formatted = result.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     
     if (type === 'venda') setSecondaryIncome(formatted);
@@ -125,9 +125,9 @@ export default function App() {
     
     if (fromRate === 0 || toRate === 0 || realRate === 0 || secondaryRate === 0) return;
     
-    // Special calculation for purchase tertiary balloon: (Value in Dirham) * RateReal
+    // Special calculation for tertiary balloon: (Value in Original Currency) * RateFrom
     // This ensures that if the second balloon is already in Real, the third balloon is equal.
-    const result = type === 'compra' ? (num / fromRate) * realRate : (num * toRate);
+    const result = (num * fromRate) / realRate;
     const formatted = result.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     
     if (type === 'venda') setTertiaryIncome(formatted);
@@ -135,9 +135,7 @@ export default function App() {
   }, [income, expense, vendaRates, compraRates, currency, secondaryCurrency, tertiaryCurrency, type]);
 
   useEffect(() => {
-    if (type === 'compra') {
-      setTertiaryCurrency('R$');
-    }
+    setTertiaryCurrency('R$');
   }, [type]);
 
   const [entries, setEntries] = useState<FinancialEntry[]>(() => {
@@ -161,29 +159,22 @@ export default function App() {
   const getAmountInBase = (amount: number, currencySymbol: string, opType: string, secCurrency: string) => {
     if (currencySymbol === 'R$') return amount;
     const rate = getRateValue(currencySymbol, opType);
-    const realRate = getRateValue('R$', opType);
     if (rate === 0) return 0;
     
-    if (opType === 'compra') {
-      // For purchases, the base value is always the amount converted to Real
-      const amountInDirham = amount / rate;
-      return amountInDirham * realRate;
-    } else {
-      const amountInDirham = amount * rate;
-      return amountInDirham * realRate;
-    }
+    // The base value is always the amount converted to Real (multiplied by rate)
+    return amount * rate;
   };
 
   // Migration: Ensure all entries have amountInBase in Real (R$)
   useEffect(() => {
-    const isMigrated = localStorage.getItem('financial_migrated_to_real_v3') === 'true';
+    const isMigrated = localStorage.getItem('financial_migrated_to_real_v6') === 'true';
     if (!isMigrated && entries.length > 0) {
       const migrated = entries.map(e => ({
         ...e,
         amountInBase: getAmountInBase(e.amount, e.currency || 'د.إ', e.type, e.secondaryCurrency || 'د.إ')
       }));
       setEntries(migrated);
-      localStorage.setItem('financial_migrated_to_real_v3', 'true');
+      localStorage.setItem('financial_migrated_to_real_v6', 'true');
     }
   }, [entries]);
 
@@ -236,8 +227,8 @@ export default function App() {
   };
 
   const currencies = [
-    { label: 'Dirham', symbol: 'د.إ' },
     { label: 'Real', symbol: 'R$' },
+    { label: 'Dirham', symbol: 'د.إ' },
     { label: 'Dólar', symbol: '$' },
     { label: 'Euro', symbol: '€' },
     { label: 'Libra', symbol: '£' },
@@ -390,23 +381,6 @@ export default function App() {
 
                   {/* Tertiary Value Input */}
                   <div className="space-y-3 pt-2">
-                    <div className="flex justify-end items-center px-1">
-                      <div className="flex gap-1">
-                        {currencies.map((curr) => (
-                          <button
-                            key={`ter-${curr.symbol}`}
-                            onClick={() => setTertiaryCurrency(curr.symbol)}
-                            className={`text-[10px] px-2 py-1 rounded-full font-bold transition-all ${
-                              tertiaryCurrency === curr.symbol 
-                                ? 'bg-[#adc7ff] text-[#10131a]' 
-                                : 'bg-[#1d2027] text-[#8b909f] hover:text-[#c1c6d6]'
-                            }`}
-                          >
-                            {curr.symbol}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
                     <div className="bg-[#191c23] rounded-xl p-4 flex items-center gap-2 focus-within:ring-2 focus-within:ring-[#adc7ff] transition-all opacity-60">
                       <span className="text-[#adc7ff] font-bold min-w-[24px]">{tertiaryCurrency}</span>
                       <input 
@@ -501,25 +475,6 @@ export default function App() {
 
                   {/* Tertiary Value Input */}
                   <div className="space-y-3 pt-2">
-                    {type === 'venda' && (
-                      <div className="flex justify-end items-center px-1">
-                        <div className="flex gap-1">
-                          {currencies.map((curr) => (
-                            <button
-                              key={`ter-${curr.symbol}`}
-                              onClick={() => setTertiaryCurrency(curr.symbol)}
-                              className={`text-[10px] px-2 py-1 rounded-full font-bold transition-all ${
-                                tertiaryCurrency === curr.symbol 
-                                  ? 'bg-[#ffb691] text-[#10131a]' 
-                                  : 'bg-[#1d2027] text-[#8b909f] hover:text-[#c1c6d6]'
-                              }`}
-                            >
-                              {curr.symbol}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                     <div className="bg-[#191c23] rounded-xl p-4 flex items-center gap-2 focus-within:ring-2 focus-within:ring-[#ffb691] transition-all opacity-60">
                       <span className="text-[#ffb691] font-bold min-w-[24px]">{tertiaryCurrency}</span>
                       <input 
@@ -544,12 +499,12 @@ export default function App() {
           <div className="space-y-3 pt-4">
             <label className="block text-[10px] uppercase tracking-[0.2em] text-[#8b909f] font-bold px-1">Cotação do Dia</label>
             <div className="grid grid-cols-5 gap-2">
-              {/* Dirham Base Balloon (White) */}
+              {/* Real Base Balloon (White) */}
               <div className="bg-white rounded-xl p-2 flex flex-col items-center gap-1 border border-white shadow-lg">
-                <span className="text-[10px] font-bold text-[#10131a]">د.إ</span>
+                <span className="text-[10px] font-bold text-[#10131a]">R$</span>
                 <span className="text-xs font-bold text-[#10131a]">1,00</span>
               </div>
-              {currencies.filter(c => c.symbol !== 'د.إ').map((curr) => (
+              {currencies.filter(c => c.symbol !== 'R$').map((curr) => (
                 <div key={`rate-${curr.symbol}`} className={`bg-[#191c23] rounded-xl p-2 flex flex-col items-center gap-1 border border-[#1d2027] transition-all ${type === 'venda' ? 'focus-within:border-[#adc7ff]/30' : 'focus-within:border-[#ffb691]/30'}`}>
                   <span className={`text-[10px] font-bold ${type === 'venda' ? 'text-[#adc7ff]' : 'text-[#ffb691]'}`}>{curr.symbol}</span>
                   <input 
